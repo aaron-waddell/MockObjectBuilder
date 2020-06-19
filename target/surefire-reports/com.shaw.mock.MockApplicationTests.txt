@@ -1,8 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.shaw.mock.MockApplicationTests
--------------------------------------------------------------------------------
-Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.249 s <<< FAILURE! - in com.shaw.mock.MockApplicationTests
-com.shaw.mock.MockApplicationTests  Time elapsed: 0.248 s  <<< ERROR!
-java.lang.IllegalArgumentException: Could not find class [com.shaw.mock.MockTestApplication]
-Caused by: java.lang.ClassNotFoundException: com.shaw.mock.MockTestApplication
-
