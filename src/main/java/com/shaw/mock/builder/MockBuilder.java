@@ -2,12 +2,15 @@ package com.shaw.mock.builder;
 
 import static org.apache.commons.lang3.RandomStringUtils.randomAlphabetic;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -26,6 +29,7 @@ public class MockBuilder<Any> {
     @SuppressWarnings("unchecked")
 	public static <Any>Any build(Class<?> clazz)
 	{
+		logger.debug("building mock object for " + clazz);
     	List<Field> fields = collectFields(clazz).collect(Collectors.toList());
 		fields = fields.parallelStream()
 				.filter(fi->Modifier.isStatic(fi.getModifiers())==false 
@@ -37,12 +41,16 @@ public class MockBuilder<Any> {
 
 		fields.parallelStream().forEach(m->m.setAccessible(true));
 		Object obj;
+		Constructor<?> constructor = null;
 		try {
-			obj = clazz.getDeclaredConstructor().newInstance();
+			constructor = clazz.getDeclaredConstructor();
+			obj = constructor.newInstance();
 			fields.parallelStream().forEach(f->setMockValue(obj, f));
+			logger.debug("completed mock object for " + clazz);
 			return (Any) obj;
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
+			logger.debug("unable to instantiate " + clazz + " with " + constructor);
 			e.printStackTrace();
 		}
 		return null;
@@ -81,7 +89,7 @@ public class MockBuilder<Any> {
 		else if (f.getType().isAssignableFrom(LocalDateTime.class))
 			value = randomDateTime();
 		else if (f.getType().isAssignableFrom(List.class))
-			value = null;
+			value = buildList(f);
 		else
 			value = build(f.getType());
 
@@ -92,6 +100,20 @@ public class MockBuilder<Any> {
 			e.printStackTrace();
 		}
 		logger.debug("set " + f.getName() + " -> " + value);
+	}
+
+	private static List<?> buildList(Field f) {
+        ParameterizedType stringListType = (ParameterizedType) f.getGenericType();
+        Class<?> clazz = (Class<?>) stringListType.getActualTypeArguments()[0];
+		logger.debug("building list of " + clazz);
+		List<Object> list = new ArrayList<Object>();
+		Object o = build(clazz);
+		if (o!=null)
+		{
+			list.add(o);
+			list.add(build(clazz));
+		}
+        return list;
 	}
 
 	static LocalDate randomDate() {

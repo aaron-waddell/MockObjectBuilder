@@ -28,6 +28,8 @@ class MockBuilderTest {
 		assertNotNull(result.getIo());
 		assertNotEquals("",result.getIo().getIstr1());		
 		assertNotEquals("",((ParentObject)result).getPs1());		
+		assertNotNull(result.getList1());
+		assertNotEquals("",result.getList1().get(0).getLs1());		
 	}
 
 

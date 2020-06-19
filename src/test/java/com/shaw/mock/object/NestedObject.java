@@ -2,6 +2,7 @@ package com.shaw.mock.object;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class NestedObject extends ParentObject{
 
@@ -65,6 +66,8 @@ public class NestedObject extends ParentObject{
 	
 	InteriorObject io;
 
+	List<ListObject> list1;
+
 	public NestedObject() {
 		super();
 		// TODO Auto-generated constructor stub
@@ -110,10 +113,18 @@ public class NestedObject extends ParentObject{
 		this.io = io;
 	}
 
+	public List<ListObject> getList1() {
+		return list1;
+	}
+
+	public void setList1(List<ListObject> list1) {
+		this.list1 = list1;
+	}
+
 	@Override
 	public String toString() {
-		return "NestedObject [parentObject = " + super.toString() + " str1=" + str1 + ", str2=" + str2 + ", ldate=" + ldate + ", i=" + i + ", io=" + io + "]";
+		return "NestedObject [str1=" + str1 + ", str2=" + str2 + ", ldate=" + ldate + ", i=" + i + ", io=" + io
+				+ ", list1=" + list1 + "]";
 	}
-	
 	
 }
