@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: edi-order-services-buildtime
+labels:
+  template: edi-order-services-buildtime
+  app: edi-order-services 
+parameters:
+- name: NAMESPACE
+  description: namespace to use in generating artifacts
+- name: TIMEZONE
+  description: time zone for logs
+- name: REGISTRY_HOST
+  description: registry to use
+  value: rhcpnpreg.shawinc.com
+- name: PROJECT_NAME
+  description: project name
+  value: cust-svc-np  
+  
+objects:
+- apiVersion: v1
+  kind: BuildConfig
+  metadata:
+    labels:
+      app: ${NAMESPACE}
+    name: ${NAMESPACE}
+  spec:
+    failedBuildsHistoryLimit: 2
+    nodeSelector: null
+    output:
+      pushSecret:
+        name: registry-secrets    
+      to:
+        kind: DockerImage
+        name: ${REGISTRY_HOST}/${PROJECT_NAME}/${NAMESPACE}:latest
+    postCommit: {}
+    resources: {}
+    runPolicy: Serial
+    source:
+      binary: {}
+      type: Binary
+    strategy:
+      sourceStrategy:
+        env:
+        - name: TZ
+          value: ${TIMEZONE}            
+        pullSecret:
+          name: registry-secrets      
+        from:
+          kind: DockerImage
+          name: ${REGISTRY_HOST}/openshift/java:8
+      type: Source
+    successfulBuildsHistoryLimit: 3
+    triggers:
+    - type: ConfigChange
+

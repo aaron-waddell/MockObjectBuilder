@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: edi-order-services-runtime
+labels:
+  template: edi-order-services-runtime
+  app: edi-order-services 
+parameters:
+- name: ENV_NAME
+  description: environment level being created such as master,sys, qa, prd
+- name: NAMESPACE
+  description: namespace to use in generating artifacts
+- name: REGISTRY_HOST
+  description: registry to use
+  value: rhcpnpreg.shawinc.com
+- name: PROJECT_NAME
+  description: project name
+  value: cust-svc-np    
+- name: IMAGE_TAG
+  description: image tag to use
+  value: latest
+- name: REPLICAS
+  description: replica count to deploy
+  value: '1'
+- name: ROUTE_HOST
+  description: Hostname to use in route
+- name: CPU_REQUEST
+  description: CPU Resource Request
+  value: 200m
+- name: MEMORY_LIMIT
+  description: Memory Resource Limit
+  value: 512Mi
+- name: MEMORY_REQUEST
+  description: Memory Resource Request
+  value: 256Mi
+- name: profile_name
+- name: server_port
+- name: db2datasource_url
+- name: db2datasource_username 
+- name: db2datasource_password
+- name: db2_max_pool
+- name: db2_idle_timeout
+- name: db2_minimum_idle
+- name: sqldatasource_url
+- name: sqldatasource_username 
+- name: sqldatasource_password
+- name: sql_max_pool
+- name: sql_idle_timeout
+- name: sql_minimum_idle
+- name: three_scale_secret_token
+- name: three_scale_user_key
+- name: dsservices_servername
+  
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    generation: 1
+    labels:
+      app: ${NAMESPACE}-${ENV_NAME}
+      environment: ${ENV_NAME}
+    name: ${NAMESPACE}-${ENV_NAME}
+  spec:
+    replicas: ${{REPLICAS}}
+    selector:
+      deploymentconfig: ${NAMESPACE}-${ENV_NAME}
+    strategy:
+      activeDeadlineSeconds: 21600
+      resources: {}
+      rollingParams:
+        intervalSeconds: 1
+        maxSurge: 25%
+        maxUnavailable: 25%
+        timeoutSeconds: 600
+        updatePeriodSeconds: 1
+      type: Rolling
+    template:
+      metadata:
+        creationTimestamp: null
+        labels:
+          deploymentconfig: ${NAMESPACE}-${ENV_NAME}
+          environment:  ${ENV_NAME}
+      spec:
+        containers:
+        - env:
+          - name: GC_MAX_METASPACE_SIZE
+            value: '300'
+          - name: db2datasource_url
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: db2datasource_url
+          - name: db2datasource_username
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: db2datasource_username
+          - name: db2datasource_password
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: db2datasource_password
+          - name: db2_max_pool
+            value: ${db2_max_pool}
+          - name: db2_idle_timeout
+            value: ${db2_idle_timeout}
+          - name: db2_minimum_idle
+            value: ${db2_minimum_idle}
+          - name: sqldatasource_url
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: sqldatasource_url
+          - name: sqldatasource_username
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: sqldatasource_username
+          - name: sqldatasource_password
+            valueFrom:
+              secretKeyRef:
+                name: ${ENV_NAME}-${NAMESPACE}-secret
+                key: sqldatasource_password
+          - name: sql_max_pool
+            value: ${sql_max_pool}
+          - name: sql_idle_timeout
+            value: ${sql_idle_timeout}
+          - name: sql_minimum_idle
+            value: ${sql_minimum_idle}
+          - name: three_scale_secret_token
+            value: ${three_scale_secret_token}
+          - name: three_scale_user_key
+            value: ${three_scale_user_key}
+          - name: dsservices_servername
+            value: ${dsservices_servername}
+          image: ${REGISTRY_HOST}/${PROJECT_NAME}/${NAMESPACE}:${IMAGE_TAG}
+          imagePullPolicy: Always
+          name: ${NAMESPACE}-${ENV_NAME}
+          ports:
+          - containerPort: 8080
+            protocol: TCP
+          resources:
+            limits:
+              memory: ${{MEMORY_LIMIT}}
+            requests:
+              cpu: ${{CPU_REQUEST}}
+              memory: ${{MEMORY_REQUEST}}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        schedulerName: default-scheduler
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+    test: false
+    triggers:
+    - type: ConfigChange
+- apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      app: ${NAMESPACE}
+      environment: ${ENV_NAME}
+    name: ${NAMESPACE}-${ENV_NAME}
+  spec:
+    ports:
+    - name: 8080-tcp
+      port: 8080
+      protocol: TCP
+      targetPort: 8080
+    selector:
+      deploymentconfig: ${NAMESPACE}-${ENV_NAME}
+    sessionAffinity: None
+    type: ClusterIP
+  status:
+    loadBalancer: {}
+- apiVersion: v1
+  kind: Route
+  metadata:
+    labels:
+      app: ${NAMESPACE}
+      environment: ${ENV_NAME}
+    name: ${NAMESPACE}-${ENV_NAME}
+  spec:
+    host: ${ROUTE_HOST}
+    port:
+      targetPort: 8080-tcp
+    tls:
+      termination: edge
+    to:
+      kind: Service
+      name: ${NAMESPACE}-${ENV_NAME}
+      weight: 100
+    wildcardPolicy: None

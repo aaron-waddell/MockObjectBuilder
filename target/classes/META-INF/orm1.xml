@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<entity-mappings version="2.1" xmlns="http://xmlns.jcp.org/xml/ns/persistence/orm" 
+							   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+							   xsi:schemaLocation="http://xmlns.jcp.org/xml/ns/persistence/orm http://xmlns.jcp.org/xml/ns/persistence/orm_2_1.xsd">
+
+     <named-native-query name="getSamplesInfo" result-class="com.shaw.ediorderservices.persistance.db2.entity.SamplesInfo">
+    	<query>
+    	<![CDATA[
+			SELECT
+					 SMP.STYLE_NBR              AS samplesStyleNbr
+			        ,SMP.COLOR_NBR				AS samplesColorNbr
+			        ,SMP.SUBSET                 As subset
+			        ,SMP.PACK_TYPE				AS packType
+			        ,SMP.CARTON_QTY             AS cartonQty 
+			        ,SMP.DEL_VEH_NBR			AS delVehNbr
+			        ,SMP.SEQUENCE_NBR  			AS samplesSeqNbr
+			        ,COALESCE(DV.DESCRIPTION,'') AS delVehName
+			        ,COALESCE(SC.PRODUCT_ID,' ') AS invStyleNbr
+			        ,COALESCE(SC.INV_COLOR_NBR,' ') AS invColorNbr
+			        ,COALESCE(SMP.ITEM_NBR,'')  AS partNbr
+			        ,COALESCE(SMP2.ITEM_NBR,SMP.ITEM_NBR,'') AS invPartNbr
+
+			          
+			    FROM SHXP.SMP_PART_NBR_MSTR SMP
+			
+				JOIN SHXP.DEL_VEHICLE DV
+			    	ON SMP.DEL_VEH_NBR = DV.DEL_VEH_NBR
+				
+			    LEFT JOIN SHXP.SELLING_COLORS SC
+				  ON SC.SELLING_COLOR_NBR = SMP.COLOR_NBR
+				 AND SC.SELLING_STYLE_NBR = SMP.STYLE_NBR
+				 AND SC.CUST_REFERENCE_NBR = '102'
+				 AND SC.STATUS IN ('A','P','F')
+			
+				LEFT JOIN SHXP.SMP_PART_NBR_MSTR SMP2
+				  ON SC.PRODUCT_ID    = SMP2.STYLE_NBR
+				 AND SC.INV_COLOR_NBR = SMP2.COLOR_NBR
+				 AND SMP.DEL_VEH_NBR  = SMP2.DEL_VEH_NBR
+			    
+				WHERE SMP.ITEM_NBR = :itemNbr
+				WITH UR;
+			]]>
+		</query>
+	</named-native-query>
+
+	<named-native-query name="checkValidSKU">
+    	<query>
+    	<![CDATA[
+			SELECT
+			      SPN.CUSTOMER_NBR
+			
+			FROM SHXP.EDI_SKU_XREF X
+			JOIN SHXP.SMP_PART_NBR_MSTR SPN
+			  ON X.SELL_STYLE_NUMBER CONCAT X.SELL_COLOR_NUMBER = SPN.ITEM_NBR
+
+			WHERE X.PROD_TYPE = 'S'
+			 AND X.SELL_STYLE_NUMBER = :sellStyle
+			 AND X.SELL_COLOR_NUMBER = :sellColor
+			 AND X.CUSTOMER_CODE = :custCode
+			 AND X.ORDERING_SYS = :OrderingSys
+			 AND SPN.CUSTOMER_NBR <> ''
+
+			UNION 
+
+			SELECT
+			     SPN2.CUSTOMER_NBR
+			     
+			FROM SHXP.EDI_SKU_XREF X
+			JOIN SHXP.SMP_PART_NBR_MSTR SPN
+			  ON X.SELL_STYLE_NUMBER CONCAT X.SELL_COLOR_NUMBER = SPN.ITEM_NBR
+			  			
+			JOIN SHXP.SELLING_COLORS SC
+			       ON SPN.STYLE_NBR = SC.SELLING_STYLE_NBR
+			      AND X.CUSTOMER_REF_NBR = SC.CUST_REFERENCE_NBR
+			      AND SPN.COLOR_NBR = SC.SELLING_COLOR_NBR
+			
+			JOIN SHXP.SMP_PART_NBR_MSTR SPN2
+			  ON   SC.PRODUCT_ID  = SPN2.STYLE_NBR
+			 AND SC.INV_COLOR_NBR = SPN2.COLOR_NBR
+			 AND SPN.DEL_VEH_NBR = SPN2.DEL_VEH_NBR
+
+			WHERE X.PROD_TYPE = 'S'
+			 AND X.SELL_STYLE_NUMBER = :sellStyle
+			 AND X.SELL_COLOR_NUMBER = :sellColor
+			 AND X.CUSTOMER_CODE = :custCode
+			 AND X.ORDERING_SYS = :orderingSys
+			 AND SPN2.CUSTOMER_NBR = ''
+		     AND SPN2.SEQUENCE_NBR = ''
+			WITH UR
+			;
+		]]>
+		</query>
+	</named-native-query>							 
+
+    <named-native-query name="EdiOrderHeader.updateAgent">
+    	<query>
+			UPDATE SHXP.EDI_ORDER_HEADER
+			SET STATUS_CODE = :status
+	          , ERROR_CODE  = :errorCode
+			  , ERROR_DESCRIPTION = :desc
+			  , CHNG_LID          = 'EDIS'
+			  , CHNG_TIMESTAMP    = CURRENT TIMESTAMP
+			  , ERROR_TIMESTAMP   = CURRENT TIMESTAMP
+			  , ASSIGNED_AGENT    = :agent
+			WHERE EDI_ORDER_NUMBER = :ediOrderNbr
+			;
+		</query>
+	</named-native-query>							 
+	
+</entity-mappings>
