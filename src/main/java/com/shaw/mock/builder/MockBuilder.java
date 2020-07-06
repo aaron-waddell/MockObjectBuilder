@@ -17,17 +17,31 @@ import java.util.stream.Stream;
 
 import javax.persistence.Column;
 import javax.persistence.GeneratedValue;
+import javax.persistence.ManyToOne;
 
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.springframework.beans.BeansException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.stereotype.Service;
 
-public class MockBuilder<Any> {
+@Service
+public class MockBuilder {
 
     protected static final Logger logger = LogManager.getLogger();
+	
+    @Autowired
+    ApplicationContext context;
+    
+	public MockBuilder() {
+		super();
+	}
 
-    @SuppressWarnings("unchecked")
-	public static <Any>Any build(Class<?> clazz)
+	@SuppressWarnings("unchecked")
+	public <Any> Any build(Class<?> clazz)
 	{
 		logger.debug("building mock object for " + clazz);
     	List<Field> fields = collectFields(clazz).collect(Collectors.toList());
@@ -35,6 +49,7 @@ public class MockBuilder<Any> {
 				.filter(fi->Modifier.isStatic(fi.getModifiers())==false 
 							&& Modifier.isFinal(fi.getModifiers())==false
 							&& Modifier.isTransient(fi.getModifiers())==false
+							&& fi.getAnnotation(ManyToOne.class)==null  //exclude bi-directional entity relationships
 							&& Modifier.isVolatile(fi.getModifiers())==false)
 				.filter(f->f.getAnnotation(GeneratedValue.class)==null)
 				.collect(Collectors.toList());
@@ -42,21 +57,36 @@ public class MockBuilder<Any> {
 		fields.parallelStream().forEach(m->m.setAccessible(true));
 		Object obj;
 		Constructor<?> constructor = null;
+//		finally {
+//			context.;
+//		}
+		
 		try {
 			constructor = clazz.getDeclaredConstructor();
 			obj = constructor.newInstance();
 			fields.parallelStream().forEach(f->setMockValue(obj, f));
 			logger.debug("completed mock object for " + clazz);
 			return (Any) obj;
-		} catch (Exception e) {
+		} catch (InstantiationException e) {
 			// TODO Auto-generated catch block
 			logger.debug("unable to instantiate " + clazz + " with " + constructor);
 			e.printStackTrace();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			logger.debug("other exception for " + clazz);
+			e.printStackTrace();
+		}
+		try {
+			logger.debug("attempting to get bean: " + clazz);
+			Object b = context.getBean(clazz);
+			return (Any) b;
+		} catch (Exception e1) {
+			logger.debug("no bean found: " + context + " " + e1.toString());
 		}
 		return null;
 	}
 
-    private static Stream<Field> collectFields(Class<?> clazz)
+    private Stream<Field> collectFields(Class<?> clazz)
     {
 		if (clazz.getDeclaredFields().length==0)
 			return Stream.empty();
@@ -66,7 +96,7 @@ public class MockBuilder<Any> {
     	return s;
     }
 
-    private static void setMockValue(Object obj, Field f) {
+    private void setMockValue(Object obj, Field f) {
 		f.setAccessible(true);
 		int strLength = f.getAnnotation(Column.class)!=null?f.getAnnotation(Column.class).length():20;  //limit length of Strings for data columns
 		Object value = null;
@@ -88,6 +118,8 @@ public class MockBuilder<Any> {
 			value = randomDate();
 		else if (f.getType().isAssignableFrom(LocalDateTime.class))
 			value = randomDateTime();
+		else if (f.getType().isAssignableFrom(String.class))
+			value = randomAlphabetic(Math.min(strLength,20));
 		else if (f.getType().isAssignableFrom(List.class))
 			value = buildList(f);
 		else
@@ -102,7 +134,7 @@ public class MockBuilder<Any> {
 		logger.debug("set " + f.getName() + " -> " + value);
 	}
 
-	private static List<?> buildList(Field f) {
+	private List<?> buildList(Field f) {
         ParameterizedType stringListType = (ParameterizedType) f.getGenericType();
         Class<?> clazz = (Class<?>) stringListType.getActualTypeArguments()[0];
 		logger.debug("building list of " + clazz);
