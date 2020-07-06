@@ -9,10 +9,9 @@ public class BeanObject {
 
 	String bstr1;
 	
-	private BeanObject() {
-		super();
-		// TODO Auto-generated constructor stub
-	}
+//	private BeanObject() {
+//		super();
+//	}
 
 	public String getBstr1() {
 		return bstr1;
