@@ -15,7 +15,10 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -26,7 +29,6 @@ import javax.xml.bind.JAXBElement;
 import javax.xml.datatype.XMLGregorianCalendar;
 import javax.xml.namespace.QName;
 
-import com.sun.org.apache.xerces.internal.jaxp.datatype.XMLGregorianCalendarImpl;
 import org.apache.commons.lang3.RandomUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -34,10 +36,18 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
+import com.sun.org.apache.xerces.internal.jaxp.datatype.XMLGregorianCalendarImpl;
+
 @Service
 public class MockBuilder {
 
     protected static final Logger logger = LogManager.getLogger();
+
+	private static final Predicate<Field> modifierFilter = fi->Modifier.isStatic(fi.getModifiers())==false 
+							&& Modifier.isFinal(fi.getModifiers())==false
+							&& Modifier.isTransient(fi.getModifiers())==false
+							&& fi.getAnnotation(ManyToOne.class)==null  //exclude bi-directional entity relationships
+							&& Modifier.isVolatile(fi.getModifiers())==false;
 	
     @Autowired
     ApplicationContext context;
@@ -52,11 +62,12 @@ public class MockBuilder {
 		logger.debug("building mock object for " + clazz);
     	List<Field> fields = collectFields(clazz).collect(Collectors.toList());
 		fields = fields.parallelStream()
-				.filter(fi->Modifier.isStatic(fi.getModifiers())==false 
-							&& Modifier.isFinal(fi.getModifiers())==false
-							&& Modifier.isTransient(fi.getModifiers())==false
-							&& fi.getAnnotation(ManyToOne.class)==null  //exclude bi-directional entity relationships
-							&& Modifier.isVolatile(fi.getModifiers())==false)
+//				.filter(fi->Modifier.isStatic(fi.getModifiers())==false 
+//							&& Modifier.isFinal(fi.getModifiers())==false
+//							&& Modifier.isTransient(fi.getModifiers())==false
+//							&& fi.getAnnotation(ManyToOne.class)==null  //exclude bi-directional entity relationships
+//							&& Modifier.isVolatile(fi.getModifiers())==false)
+				.filter(modifierFilter)
 				.filter(f->f.getAnnotation(GeneratedValue.class)==null)
 				.collect(Collectors.toList());
 
@@ -107,7 +118,12 @@ public class MockBuilder {
 		Stream<Field> s = Stream.of(clazz.getDeclaredFields());
 		if (clazz.getSuperclass()!=null)
 			return Stream.concat(s, collectFields(clazz.getSuperclass()));
-    	return s;
+    	Stream<Field> s2 = s.filter(fi->Modifier.isStatic(fi.getModifiers())==false 
+		&& Modifier.isFinal(fi.getModifiers())==false
+		&& Modifier.isTransient(fi.getModifiers())==false
+		&& fi.getAnnotation(ManyToOne.class)==null  //exclude bi-directional entity relationships
+		&& Modifier.isVolatile(fi.getModifiers())==false);
+    	return s2;
     }
 
     private void setMockValue(Object obj, Field f) {
@@ -252,6 +268,40 @@ public class MockBuilder {
 		Calendar c = Calendar.getInstance();
 		c.setTimeInMillis(RandomUtils.nextLong(0, 1000000));
 		return c;
+	}
+
+	public Map<String, Object> buildMapOfColumns(Object obj) {
+		// TODO Auto-generated method stub
+		Map<String, Object> hashMap = new HashMap<String,Object>();
+		List<Field> fields = collectFields(obj.getClass()).collect(Collectors.toList());
+		fields.parallelStream().forEach(m->m.setAccessible(true));
+		hashMap = fields.stream()
+			.filter(modifierFilter)
+			.filter(f->f.getAnnotation(Column.class)!=null)
+			.peek(f->logger.debug("adding key:" + f.getAnnotation(Column.class).name() + " value: " + safeGet(f,obj)))
+			.collect(Collectors.toMap(f->f.getAnnotation(Column.class).name(),f->safeGet(f,obj)));
+		return hashMap;
+	}
+
+	private Object safeGet(Field f, Object obj) {
+		try {
+			return f.get(obj);
+		} catch (IllegalArgumentException | IllegalAccessException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	public Map<String, Object> buildMapByFieldname(Object obj) {
+		Map<String, Object> hashMap = new HashMap<String,Object>();
+		List<Field> fields = collectFields(obj.getClass()).collect(Collectors.toList());
+		fields.parallelStream().forEach(m->m.setAccessible(true));
+		hashMap = fields.stream()
+			.filter(modifierFilter)
+			.peek(f->logger.debug("adding key:" + f.getName() + " value: " + safeGet(f,obj)))
+			.collect(Collectors.toMap(f->f.getName(),f->safeGet(f,obj)));
+		return hashMap;
 	}
 
 }
